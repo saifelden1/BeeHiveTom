@@ -76,22 +76,41 @@
  * Piezo vibration sensor connected to ADC1 channel.
  * ADC configuration: 12-bit resolution, 11dB attenuation (0-3.3V range)
  */
-#define VIBRATION_ADC_CHANNEL       ADC1_CHANNEL_0  // GPIO36 on ESP32
+#define VIBRATION_GPIO_PIN          GPIO_NUM_36     // GPIO36 (ADC1_CHANNEL_0)
+#define VIBRATION_ADC_CHANNEL       ADC1_CHANNEL_0  // ADC1 Channel 0
 #define VIBRATION_ADC_ATTEN         ADC_ATTEN_DB_11 // 0-3.3V range
-#define VIBRATION_ADC_WIDTH         ADC_WIDTH_BIT_12 // 12-bit resolution
+#define VIBRATION_ADC_WIDTH         ADC_WIDTH_BIT_12 // 12-bit resolution (0-4095)
 
 /**
  * @brief Vibration sensor sampling configuration
+ * 
+ * For continuous vibration monitoring (beehive activity):
+ * - Sample duration: 500ms (configurable)
+ * - Sample rate: 1000 Hz (1ms interval)
+ * - Median frequency calculation for stable readings
  */
-#define VIBRATION_SAMPLE_RATE       1000    // Sampling rate in Hz (1kHz)
-#define VIBRATION_BUFFER_SIZE       1000    // Sample buffer size (1 second)
-#define VIBRATION_THRESHOLD         0.1f    // Detection threshold (0.0-1.0)
+#define VIBRATION_SAMPLE_DURATION_MS    500     // Sampling duration in milliseconds
+#define VIBRATION_SAMPLE_RATE_HZ        1000    // Sampling rate in Hz (1kHz)
+#define VIBRATION_SAMPLE_INTERVAL_US    (1000000 / VIBRATION_SAMPLE_RATE_HZ) // 1000µs
+#define VIBRATION_BUFFER_SIZE           (VIBRATION_SAMPLE_RATE_HZ * VIBRATION_SAMPLE_DURATION_MS / 1000) // 500 samples
+#define VIBRATION_THRESHOLD             0.1f    // Detection threshold (0.0-1.0)
 
 /**
  * @brief Vibration frequency detection range
+ * 
+ * Typical beehive vibration frequencies:
+ * - Worker bee wing beat: 200-250 Hz
+ * - Queen piping: 300-500 Hz
+ * - Swarming activity: 100-300 Hz
  */
 #define VIBRATION_MIN_FREQ_HZ       10      // Minimum detectable frequency
 #define VIBRATION_MAX_FREQ_HZ       500     // Maximum detectable frequency
+
+/**
+ * @brief Vibration ADC voltage reference
+ */
+#define VIBRATION_ADC_MAX_VALUE     4095    // 12-bit ADC maximum value
+#define VIBRATION_VREF_MV           3300    // Reference voltage in millivolts
 
 // ============================================================================
 // SYSTEM TIMING CONFIGURATION
