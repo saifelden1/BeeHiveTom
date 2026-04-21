@@ -6,10 +6,11 @@ Analog piezo vibration sensor driver for continuous vibration monitoring in beeh
 
 ## Features
 
-- **Blocking ADC Sampling**: Configurable sampling rate (default: 1kHz) and duration (default: 500ms)
-- **Frequency Detection**: Zero-crossing detection with median filtering (10-500 Hz range)
-- **Amplitude Measurement**: Peak-to-peak amplitude normalized to 0.0-1.0
-- **Continuous Vibration**: Optimized for continuous vibration monitoring (not impact detection)
+- **Blocking ADC Sampling**: 100 Hz sample rate (10ms intervals) for 500ms duration
+- **Peak Detection**: Detects piezo voltage spikes with debouncing
+- **Frequency Measurement**: Calculates actual Hz from peak intervals with median filtering (10-500 Hz range)
+- **Amplitude Measurement**: Maximum deviation from baseline, normalized to 0.0-1.0
+- **Continuous Vibration**: Optimized for continuous vibration monitoring (beehive wing beats)
 - **Deep Sleep Compatible**: Quick init/deinit for 15-minute wake/sleep cycles
 
 ## Hardware Configuration
@@ -21,16 +22,22 @@ Analog piezo vibration sensor driver for continuous vibration monitoring in beeh
 ### ADC Settings
 - **Resolution**: 12-bit (0-4095)
 - **Attenuation**: 11dB (0-3.3V range)
-- **Sample Rate**: 1000 Hz (configurable via `VIBRATION_SAMPLE_RATE_HZ`)
-- **Sample Duration**: 500 ms (configurable via `VIBRATION_SAMPLE_DURATION_MS`)
+- **Sample Rate**: 100 Hz (10ms intervals)
+- **Sample Duration**: 500 ms (50 samples total)
+- **Required Hardware**: 1MΩ resistor from ADC pin to GND (voltage bleed/protection)
 
 ### Piezo Sensor Connection
 ```
 Piezo Sensor (+) ──→ GPIO36 (ADC1_CH0)
+                 │
+                 └──→ 1MΩ Resistor ──→ GND
 Piezo Sensor (-) ──→ GND
 ```
 
-**Note**: For high-amplitude signals, add a voltage divider or clamping circuit to protect the ESP32 ADC (max 3.3V).
+**Important**: The 1MΩ pulldown resistor is **required** to:
+- Bleed off excess voltage from piezo element
+- Protect ESP32 ADC input (max 3.3V)
+- Provide stable baseline reference
 
 ## Configuration (config.h)
 
@@ -41,8 +48,10 @@ Piezo Sensor (-) ──→ GND
 
 // Sampling parameters
 #define VIBRATION_SAMPLE_DURATION_MS    500     // 500ms sampling window
-#define VIBRATION_SAMPLE_RATE_HZ        1000    // 1kHz sampling rate
-#define VIBRATION_THRESHOLD             0.1f    // Detection threshold (0.0-1.0)
+#define VIBRATION_SAMPLE_RATE_HZ        100     // 100Hz (10ms intervals)
+#define VIBRATION_SAMPLE_INTERVAL_MS    10      // 10ms between readings
+#define VIBRATION_THRESHOLD             0.05f   // Detection threshold (0.0-1.0, 5%)
+#define VIBRATION_MIN_PEAK_SPACING_MS   10      // Debounce time (10ms)
 
 // Frequency range
 #define VIBRATION_MIN_FREQ_HZ       10      // Minimum frequency
@@ -111,19 +120,25 @@ Releases ADC resources before deep sleep.
 
 ## Algorithm Details
 
-### Frequency Detection
+### Peak Detection (Piezo-Specific)
 1. **DC Offset Removal**: Calculate mean ADC value as baseline
-2. **Zero-Crossing Detection**: Count sign changes relative to baseline
-3. **Frequency Calculation**: Measure time between crossings
-4. **Median Filtering**: Use median of detected frequencies for stability
+2. **Peak Detection**: Find local maxima above threshold
+   - Current value > previous value
+   - Current value ≥ next value  
+   - Current value > baseline + threshold
+3. **Debouncing**: Minimum 10ms between valid peaks
+4. **Frequency Calculation**: Measure time between consecutive peaks
+5. **Median Filtering**: Use median of detected frequencies for stability
 
 ### Amplitude Calculation
-1. **Peak-to-Peak**: Find min/max ADC values in sample window
-2. **Normalization**: Divide by ADC max value (4095) to get 0.0-1.0 range
+1. **Maximum Deviation**: Find max absolute deviation from baseline
+2. **Normalization**: Divide by half ADC range (piezo swings one direction)
+3. **Result**: 0.0-1.0 normalized amplitude
 
 ### Vibration Detection
-- Vibration is detected when amplitude exceeds threshold (default: 0.1)
+- Vibration detected when amplitude exceeds threshold (default: 0.05 = 5%)
 - Frequency must be within valid range (10-500 Hz)
+- Returns actual Hz frequency in `dominant_frequency_hz`
 
 ## Beehive Application Notes
 
@@ -139,15 +154,15 @@ Releases ADC resources before deep sleep.
 
 ## Memory Usage
 
-- **Static Buffer**: `VIBRATION_BUFFER_SIZE * sizeof(int32_t)` = 500 * 4 = 2KB
-- **Frequency Array**: ~500 bytes (temporary, stack allocated)
-- **Total**: ~2.5KB RAM
+- **Static Buffer**: `VIBRATION_BUFFER_SIZE * sizeof(int32_t)` = 50 * 4 = 200 bytes
+- **Frequency Array**: ~200 bytes (temporary, stack allocated)
+- **Total**: ~400 bytes RAM
 
 ## Performance
 
-- **Sampling Time**: 500ms (configurable)
-- **Processing Time**: <50ms (frequency analysis)
-- **Total Read Time**: ~550ms
+- **Sampling Time**: 500ms (50 samples at 10ms intervals)
+- **Processing Time**: <20ms (peak detection + median)
+- **Total Read Time**: ~520ms
 - **Power Consumption**: ~80mA during active sampling
 
 ## Troubleshooting
@@ -159,11 +174,13 @@ Releases ADC resources before deep sleep.
 - Check ADC voltage range (must be 0-3.3V)
 
 ### Unstable Frequency Readings
-- Increase sample duration for more data
+- Increase sample duration for more peak intervals
 - Check for electrical noise on ADC line
 - Add capacitor (0.1µF) across piezo terminals
+- Verify 1MΩ pulldown resistor is installed
 
 ### ADC Read Failures
 - Verify ADC1 channel is not used by WiFi
-- Check GPIO pin is ADC-capable
+- Check GPIO pin is ADC-capable (GPIO32-39 on ESP32)
 - Ensure ADC is not in use by other components
+- Verify 1MΩ resistor connection

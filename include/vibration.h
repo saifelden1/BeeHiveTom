@@ -2,24 +2,18 @@
  * @file vibration.h
  * @brief Piezo Vibration Sensor Driver Interface
  * 
- * Analog piezo sensor driver for continuous vibration monitoring.
- * Measures vibration frequency and amplitude using ADC sampling.
+ * Simple analog piezo sensor driver with ADC averaging.
+ * Takes multiple ADC samples and returns the average value.
  * 
  * FEATURES:
- * - Blocking ADC sampling at configurable rate (default: 1kHz)
- * - Median frequency calculation for stable readings
- * - Zero-crossing detection for frequency measurement
- * - Amplitude normalization (0.0-1.0)
- * - Configurable sampling duration (default: 500ms)
- * 
- * DEEP SLEEP COMPATIBLE:
- * - Designed for 15-minute wake/sleep cycles
- * - Quick initialization for fast wake cycles
- * - Minimal power consumption during active time
+ * - Blocking ADC sampling at configurable rate (default: 100 Hz, 10ms intervals)
+ * - Configurable sampling duration (default: 500ms, 50 samples)
+ * - Returns average ADC value (0-4095 range)
+ * - Deep sleep compatible
  * 
  * USAGE:
  * 1. Call vibration_init() once after wake-up
- * 2. Call vibration_read() to get vibration data
+ * 2. Call vibration_read() to get average vibration reading
  * 3. Call vibration_deinit() before deep sleep
  */
 
@@ -45,14 +39,13 @@ esp_err_t vibration_init(void);
  * @brief Read vibration sensor data
  * 
  * Performs blocking ADC sampling for configured duration (default: 500ms).
- * Analyzes samples to extract:
- * - Dominant frequency via zero-crossing detection
- * - Amplitude (normalized 0.0-1.0)
- * - Vibration detection status
- * 
- * Uses median frequency calculation for stable readings under continuous vibration.
+ * Takes readings at configured intervals (default: 10ms).
+ * Returns the average of all ADC readings.
  * 
  * @param data Pointer to vibration_data_t structure to populate
+ *             - dominant_frequency_hz: Average ADC value (0-4095)
+ *             - sample_count: Number of samples collected
+ *             - last_vibration_time: Timestamp of reading
  * @return ESP_OK on success, ESP_ERR_INVALID_ARG if data is NULL,
  *         ESP_ERR_INVALID_STATE if not initialized
  */

@@ -84,16 +84,15 @@
 /**
  * @brief Vibration sensor sampling configuration
  * 
- * For continuous vibration monitoring (beehive activity):
+ * Simple ADC sampling with averaging:
  * - Sample duration: 500ms (configurable)
- * - Sample rate: 1000 Hz (1ms interval)
- * - Median frequency calculation for stable readings
+ * - Sample rate: 100 Hz (10ms interval between readings)
+ * - Returns average of all ADC readings
  */
 #define VIBRATION_SAMPLE_DURATION_MS    500     // Sampling duration in milliseconds
-#define VIBRATION_SAMPLE_RATE_HZ        1000    // Sampling rate in Hz (1kHz)
-#define VIBRATION_SAMPLE_INTERVAL_US    (1000000 / VIBRATION_SAMPLE_RATE_HZ) // 1000µs
-#define VIBRATION_BUFFER_SIZE           (VIBRATION_SAMPLE_RATE_HZ * VIBRATION_SAMPLE_DURATION_MS / 1000) // 500 samples
-#define VIBRATION_THRESHOLD             0.1f    // Detection threshold (0.0-1.0)
+#define VIBRATION_SAMPLE_RATE_HZ        100     // Sampling rate in Hz (100Hz = 10ms interval)
+#define VIBRATION_SAMPLE_INTERVAL_MS    10      // 10ms between readings
+#define VIBRATION_BUFFER_SIZE           (VIBRATION_SAMPLE_RATE_HZ * VIBRATION_SAMPLE_DURATION_MS / 1000) // 50 samples
 
 /**
  * @brief Vibration frequency detection range
