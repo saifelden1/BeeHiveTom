@@ -1,0 +1,247 @@
+/**
+ * @file config.h
+ * @brief System-wide configuration constants for Sensor Data Collection System
+ * 
+ * This file contains ALL configuration constants including I2C addresses,
+ * sensor parameters, system intervals, and device settings.
+ * 
+ * CRITICAL: All I2C addresses MUST be configurable here.
+ * DO NOT hardcode I2C addresses in driver implementations.
+ */
+
+#ifndef CONFIG_H
+#define CONFIG_H
+
+#include <stdint.h>
+
+// ============================================================================
+// I2C CONFIGURATION
+// ============================================================================
+
+/**
+ * @brief BME680 I2C address
+ * 
+ * BME680 supports two I2C addresses based on SDO pin:
+ * - 0x76: SDO connected to GND (default)
+ * - 0x77: SDO connected to VCC
+ */
+#define BME680_I2C_ADDR         0x76
+
+/**
+ * @brief DS3231 RTC I2C address
+ * 
+ * DS3231 has a fixed I2C address (typically 0x68)
+ */
+#define DS3231_I2C_ADDR         0x68
+
+/**
+ * @brief I2C bus configuration
+ */
+#define I2C_MASTER_FREQ_HZ      400000  // 400kHz fast mode
+#define I2C_MASTER_TIMEOUT_MS   1000    // 1 second timeout
+
+// ============================================================================
+// BME680 SENSOR CONFIGURATION
+// ============================================================================
+
+/**
+ * @brief BME680 gas sensor heater configuration
+ * 
+ * Gas sensor requires heater activation for VOC/gas measurements.
+ * Heater temperature: 320°C
+ * Heater duration: 150ms
+ */
+#define BME680_HEATER_TEMP      320     // Heater temperature in Celsius
+#define BME680_HEATER_DURATION  150     // Heater duration in milliseconds
+
+/**
+ * @brief BME680 gas sensor calibration
+ */
+#define BME680_CALIBRATION_TIME_MS  300000  // 5 minutes calibration time
+
+/**
+ * @brief BME680 oversampling settings
+ */
+#define BME680_TEMP_OVERSAMPLE  2       // Temperature oversampling (x2)
+#define BME680_HUM_OVERSAMPLE   2       // Humidity oversampling (x2)
+#define BME680_PRES_OVERSAMPLE  2       // Pressure oversampling (x2)
+
+// ============================================================================
+// VIBRATION SENSOR CONFIGURATION
+// ============================================================================
+
+/**
+ * @brief Vibration sensor ADC configuration
+ * 
+ * Piezo vibration sensor connected to ADC1 channel.
+ * ADC configuration: 12-bit resolution, 11dB attenuation (0-3.3V range)
+ */
+#define VIBRATION_ADC_CHANNEL       ADC1_CHANNEL_0  // GPIO36 on ESP32
+#define VIBRATION_ADC_ATTEN         ADC_ATTEN_DB_11 // 0-3.3V range
+#define VIBRATION_ADC_WIDTH         ADC_WIDTH_BIT_12 // 12-bit resolution
+
+/**
+ * @brief Vibration sensor sampling configuration
+ */
+#define VIBRATION_SAMPLE_RATE       1000    // Sampling rate in Hz (1kHz)
+#define VIBRATION_BUFFER_SIZE       1000    // Sample buffer size (1 second)
+#define VIBRATION_THRESHOLD         0.1f    // Detection threshold (0.0-1.0)
+
+/**
+ * @brief Vibration frequency detection range
+ */
+#define VIBRATION_MIN_FREQ_HZ       10      // Minimum detectable frequency
+#define VIBRATION_MAX_FREQ_HZ       500     // Maximum detectable frequency
+
+// ============================================================================
+// SYSTEM TIMING CONFIGURATION
+// ============================================================================
+
+/**
+ * @brief Wake and sleep intervals
+ */
+#define READING_INTERVAL_MIN        15      // Sensor reading interval (minutes)
+#define TRANSMISSION_INTERVAL       4       // Readings before transmission
+#define SLEEP_DURATION_SEC          (READING_INTERVAL_MIN * 60)  // 900 seconds
+
+/**
+ * @brief Operation timeouts
+ */
+#define SENSOR_READ_TIMEOUT_MS      5000    // 5 seconds for all sensors
+#define WIFI_CONNECT_TIMEOUT_MS     10000   // 10 seconds WiFi connection
+#define HTTP_TRANSMIT_TIMEOUT_MS    10000   // 10 seconds HTTP transmission
+#define MAX_ACTIVE_TIME_MS          30000   // 30 seconds max active time
+
+// ============================================================================
+// DATA STORAGE CONFIGURATION
+// ============================================================================
+
+/**
+ * @brief NVS (Non-Volatile Storage) configuration
+ */
+#define NVS_NAMESPACE               "sensor_data"   // NVS namespace
+#define MAX_STORED_READINGS         1000            // Maximum readings in buffer
+#define NVS_PARTITION_SIZE          16384           // 16KB NVS partition
+
+/**
+ * @brief NVS key names
+ */
+#define NVS_KEY_METADATA            "metadata"      // Metadata key
+#define NVS_KEY_READING_PREFIX      "reading_"      // Reading key prefix
+
+// ============================================================================
+// WIFI CONFIGURATION
+// ============================================================================
+
+/**
+ * @brief WiFi credentials (placeholder - should be configured at runtime)
+ */
+#define WIFI_SSID                   "YOUR_WIFI_SSID"
+#define WIFI_PASSWORD               "YOUR_WIFI_PASSWORD"
+
+/**
+ * @brief Server configuration (localhost for testing)
+ */
+#define SERVER_URL                  "http://localhost:8080/api/sensor-data"
+
+/**
+ * @brief WiFi connection parameters
+ */
+#define WIFI_MAX_RETRY              3       // Maximum connection retries
+#define WIFI_RETRY_DELAY_MS         1000    // Delay between retries
+
+// ============================================================================
+// DEVICE CONFIGURATION
+// ============================================================================
+
+/**
+ * @brief Device identification
+ */
+#define DEVICE_ID                   "esp32_sensor_001"
+#define FIRMWARE_VERSION            "1.0.0"
+
+/**
+ * @brief Hardware configuration
+ */
+#define BOARD_NAME                  "Freenove ESP32 WROVER"
+#define POWER_SUPPLY_VOLTAGE        3.3f    // 3.3V regulated power
+
+// ============================================================================
+// POWER MANAGEMENT CONFIGURATION
+// ============================================================================
+
+/**
+ * @brief Deep sleep configuration
+ */
+#define DEEP_SLEEP_WAKEUP_TIME_US   (SLEEP_DURATION_SEC * 1000000ULL)
+#define DEEP_SLEEP_CURRENT_UA       10      // Target deep sleep current (µA)
+#define ACTIVE_CURRENT_MA           200     // Active phase current (mA)
+
+/**
+ * @brief Power consumption targets
+ */
+#define TARGET_AVG_CURRENT_MA       10      // 24-hour average current target
+
+// ============================================================================
+// ERROR HANDLING CONFIGURATION
+// ============================================================================
+
+/**
+ * @brief Sensor error handling
+ */
+#define SENSOR_MAX_RETRIES          3       // Max consecutive failures before disable
+#define SENSOR_RETRY_DELAY_MS       100     // Delay between sensor retries
+
+/**
+ * @brief Transmission error handling
+ */
+#define TRANSMISSION_MAX_RETRIES    3       // Max transmission retries
+#define TRANSMISSION_BACKOFF_MS     1000    // Exponential backoff base delay
+
+// ============================================================================
+// VALIDATION RANGES
+// ============================================================================
+
+/**
+ * @brief BME680 sensor value ranges
+ */
+#define BME680_TEMP_MIN_C           -40.0f  // Minimum temperature
+#define BME680_TEMP_MAX_C           85.0f   // Maximum temperature
+#define BME680_HUM_MIN_PCT          0.0f    // Minimum humidity
+#define BME680_HUM_MAX_PCT          100.0f  // Maximum humidity
+#define BME680_PRES_MIN_HPA         300.0f  // Minimum pressure
+#define BME680_PRES_MAX_HPA         1100.0f // Maximum pressure
+#define BME680_CO2_MIN_PPM          400     // Minimum CO2 (typical indoor)
+#define BME680_CO2_MAX_PPM          5000    // Maximum CO2 (typical indoor)
+#define BME680_IAQ_MIN              0       // Minimum IAQ index
+#define BME680_IAQ_MAX              500     // Maximum IAQ index
+
+/**
+ * @brief Vibration sensor value ranges
+ */
+#define VIBRATION_FREQ_MIN_HZ       0.0f    // Minimum frequency (no vibration)
+#define VIBRATION_FREQ_MAX_HZ       500.0f  // Maximum frequency
+#define VIBRATION_AMP_MIN           0.0f    // Minimum amplitude
+#define VIBRATION_AMP_MAX           1.0f    // Maximum amplitude (normalized)
+
+/**
+ * @brief Timestamp validation
+ */
+#define TIMESTAMP_MIN_YEAR          2020    // Minimum valid year
+
+// ============================================================================
+// LOGGING CONFIGURATION
+// ============================================================================
+
+/**
+ * @brief Log tags for different components
+ */
+#define LOG_TAG_MAIN                "MAIN"
+#define LOG_TAG_BME680              "BME680"
+#define LOG_TAG_VIBRATION           "VIBRATION"
+#define LOG_TAG_RTC                 "RTC"
+#define LOG_TAG_DATA_MGR            "DATA_MGR"
+#define LOG_TAG_COMM_MGR            "COMM_MGR"
+#define LOG_TAG_POWER_MGR           "POWER_MGR"
+
+#endif // CONFIG_H
