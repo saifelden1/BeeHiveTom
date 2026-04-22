@@ -3,24 +3,28 @@
  * @brief Piezo Vibration Sensor Driver Interface
  * 
  * Simple analog piezo sensor driver with ADC averaging.
- * Takes multiple ADC samples and returns the average value.
+ * Measures vibration amplitude (intensity) from piezo voltage.
+ * 
+ * SENSOR: Piezo film sensor with mass attachment
+ * - Generates AC voltage (up to ±90V) when vibrating
+ * - Voltage reduced to ADC levels (0-3.3V) via resistor divider
+ * - Higher vibration = higher voltage = higher ADC reading
  * 
  * FEATURES:
- * - Blocking ADC sampling at configurable rate (default: 100 Hz, 10ms intervals)
+ * - Blocking ADC sampling at configurable rate (default: 100 Hz)
  * - Configurable sampling duration (default: 500ms, 50 samples)
- * - Returns average ADC value (0-4095 range)
+ * - Returns normalized vibration amplitude (0.0-1.0)
  * - Deep sleep compatible
  * 
  * USAGE:
  * 1. Call vibration_init() once after wake-up
- * 2. Call vibration_read() to get average vibration reading
+ * 2. Call vibration_read() to get vibration amplitude
  * 3. Call vibration_deinit() before deep sleep
  */
 
 #ifndef VIBRATION_H
 #define VIBRATION_H
 
-#include "datatypes.h"
 #include "esp_err.h"
 
 /**
@@ -36,20 +40,19 @@
 esp_err_t vibration_init(void);
 
 /**
- * @brief Read vibration sensor data
+ * @brief Read vibration sensor amplitude
  * 
  * Performs blocking ADC sampling for configured duration (default: 500ms).
  * Takes readings at configured intervals (default: 10ms).
- * Returns the average of all ADC readings.
+ * Returns normalized vibration amplitude (0.0-1.0).
  * 
- * @param data Pointer to vibration_data_t structure to populate
- *             - dominant_frequency_hz: Average ADC value (0-4095)
- *             - sample_count: Number of samples collected
- *             - last_vibration_time: Timestamp of reading
- * @return ESP_OK on success, ESP_ERR_INVALID_ARG if data is NULL,
- *         ESP_ERR_INVALID_STATE if not initialized
+ * @param[out] amplitude Normalized vibration amplitude (0.0 = no vibration, 1.0 = max)
+ * 
+ * @return ESP_OK on success
+ * @return ESP_ERR_INVALID_ARG if amplitude is NULL
+ * @return ESP_ERR_INVALID_STATE if not initialized
  */
-esp_err_t vibration_read(vibration_data_t* data);
+esp_err_t vibration_read(float* amplitude);
 
 /**
  * @brief Deinitialize vibration sensor

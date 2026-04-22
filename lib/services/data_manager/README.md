@@ -4,6 +4,125 @@
 
 The Data Manager service provides persistent storage of sensor readings in NVS (Non-Volatile Storage) with JSON formatting for transmission.
 
+## Simple Explanation: How It Works
+
+### The Big Picture
+Think of the Data Manager as a **notebook that survives power loss**:
+1. **Store**: Write sensor readings to flash memory (NVS)
+2. **Track**: Keep a counter of how many readings exist
+3. **Format**: Convert all readings to JSON text when needed
+4. **Send**: Pass JSON to WiFi manager for transmission
+5. **Clear**: Erase all readings after successful send
+
+### The JSON Buffer Flow
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ main.c (app_main function)                                  │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│  1. Read sensors → sensor_reading_t                         │
+│  2. data_manager_store_reading(&reading)                    │
+│     └─> Writes to NVS flash: "reading_0", "reading_1"...   │
+│                                                              │
+│  3. Allocate JSON buffer (2.8KB)                            │
+│     char* json_buffer = malloc(JSON_BUFFER_SIZE);           │
+│                                                              │
+│  4. Format JSON from NVS                                    │
+│     data_manager_format_json(json_buffer, size)             │
+│     ├─> Reads "reading_0" from NVS                          │
+│     ├─> Reads "reading_1" from NVS                          │
+│     ├─> Reads "reading_2" from NVS                          │
+│     └─> Builds: {"id":"esp32_001","r":[{...},{...},{...}]} │
+│                                                              │
+│  5. Send JSON via WiFi                                      │
+│     comm_manager_send_json(json_buffer, strlen(json_buffer))│
+│                                                              │
+│  6. If send succeeds:                                       │
+│     data_manager_clear()                                    │
+│     └─> Deletes all "reading_X" from NVS                    │
+│                                                              │
+│  7. Free buffer                                             │
+│     free(json_buffer);                                      │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Where Data Lives
+
+**NVS Flash (Survives Power Loss)**:
+```
+NVS["metadata"]   = {count: 3}
+NVS["reading_0"]  = {ts:1704067200, temp:22.5, hum:55.2, ...}
+NVS["reading_1"]  = {ts:1704068100, temp:22.7, hum:54.8, ...}
+NVS["reading_2"]  = {ts:1704069000, temp:23.0, hum:54.5, ...}
+```
+
+**RAM (Temporary, Lost on Power Loss)**:
+```c
+// In main.c during transmission:
+char* json_buffer = malloc(2816);  // Allocated on heap
+// Contains: {"id":"esp32_001","r":[{...},{...},{...}]}
+// After transmission: free(json_buffer);  // Released
+```
+
+### How NVS → JSON Works
+
+**Step 1: Read from NVS**
+```c
+// Inside data_manager_format_json():
+for (uint32_t i = 0; i < count; i++) {
+    sensor_reading_t reading;
+    
+    // Fetch from NVS: "reading_0", "reading_1", etc.
+    data_manager_get_reading(i, &reading);
+    
+    // Convert to JSON and append to buffer
+    format_reading_json(buffer, &offset, size, &reading, is_last);
+}
+```
+
+**Step 2: Build JSON String**
+```c
+// data_manager_get_reading() implementation:
+esp_err_t data_manager_get_reading(uint32_t index, sensor_reading_t* reading)
+{
+    // Build key: "reading_0", "reading_1", etc.
+    char key[32];
+    snprintf(key, sizeof(key), "reading_%lu", index);
+    
+    // Read from NVS flash into 'reading' struct
+    size_t size = sizeof(sensor_reading_t);
+    return nvs_get_blob(nvs_handle, key, reading, &size);
+}
+```
+
+### Accessing JSON for WiFi
+
+**In main.c (lines 120-145)**:
+```c
+// Allocate buffer
+char* json_buffer = malloc(JSON_BUFFER_SIZE);
+
+// Fill buffer with JSON from NVS
+data_manager_format_json(json_buffer, JSON_BUFFER_SIZE);
+
+// Now json_buffer contains:
+// {"id":"esp32_001","r":[{"ts":1704067200,"temp":22.50,...},{...}]}
+
+// Send it
+comm_manager_send_json(json_buffer, strlen(json_buffer));
+
+// Clean up
+free(json_buffer);
+```
+
+**Key Points**:
+- Buffer is **allocated in main.c** (not in data_manager)
+- Data Manager **fills** the buffer with JSON text
+- Communication Manager **sends** the buffer via WiFi
+- Buffer is **freed** after transmission
+
 ## Architecture
 
 - **Storage**: Unlimited NVS storage with sequential keys

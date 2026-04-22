@@ -26,6 +26,9 @@ static const char* TAG = LOG_TAG_BME680;
 static bme680_t s_dev;
 static bool s_initialized = false;
 
+// I2C initialization tracking (shared across I2C devices)
+static bool s_i2c_initialized = false;
+
 // Gas baseline for IAQ calculation
 static uint32_t s_gas_baseline = 0;
 static bool s_baseline_calibrated = false;
@@ -34,6 +37,21 @@ static bool s_baseline_calibrated = false;
 #define CALIBRATION_SAMPLES 10
 static uint32_t s_calibration_count = 0;
 static uint64_t s_calibration_sum = 0;
+
+/**
+ * @brief Initialize I2C bus if not already initialized
+ */
+static esp_err_t ensure_i2c_initialized(void)
+{
+    if (s_i2c_initialized) {
+        return ESP_OK;
+    }
+    
+    // I2C is initialized by esp-idf-lib bme680_init_desc
+    // Just mark as initialized after first successful init
+    s_i2c_initialized = true;
+    return ESP_OK;
+}
 
 /**
  * @brief Load gas baseline from NVS
@@ -88,15 +106,13 @@ static esp_err_t save_baseline_to_nvs(void)
  */
 static uint16_t calculate_co2_from_gas(float gas_resistance)
 {
-    const float baseline_co2 = 450.0f;
-    const float sensitivity = 1000.0f;
-    
     if (gas_resistance <= 0.0f) {
         return BME680_CO2_MIN_PPM;
     }
     
-    // Lower gas resistance = higher VOC/CO2
-    float co2_estimate = baseline_co2 + (100000.0f - gas_resistance) / sensitivity;
+    // Use constants from config.h
+    float co2_estimate = BME680_CO2_BASELINE_PPM + 
+                        (BME680_CO2_REFERENCE_OHM - gas_resistance) / BME680_CO2_SENSITIVITY;
     
     // Clamp to valid range
     if (co2_estimate < BME680_CO2_MIN_PPM) {
@@ -109,34 +125,8 @@ static uint16_t calculate_co2_from_gas(float gas_resistance)
 }
 
 /**
- * @brief Calculate IAQ index from gas resistance
+ * @brief Calculate IAQ index from gas resistance (removed - not used)
  */
-static uint8_t calculate_iaq_from_gas(float gas_resistance)
-{
-    if (!s_baseline_calibrated || s_gas_baseline == 0) {
-        return 100;  // Neutral "Good" air quality
-    }
-    
-    float ratio = (float)s_gas_baseline / gas_resistance;
-    float iaq;
-    
-    if (ratio < 0.5f) {
-        iaq = 25.0f;  // Excellent
-    } else if (ratio < 0.75f) {
-        iaq = 50.0f + (ratio - 0.5f) * 200.0f;  // Good
-    } else if (ratio < 1.25f) {
-        iaq = 100.0f + (ratio - 0.75f) * 100.0f;  // Lightly polluted
-    } else if (ratio < 2.0f) {
-        iaq = 150.0f + (ratio - 1.25f) * 133.0f;  // Moderately polluted
-    } else {
-        iaq = 250.0f + (ratio - 2.0f) * 100.0f;  // Heavily polluted
-        if (iaq > BME680_IAQ_MAX) {
-            iaq = BME680_IAQ_MAX;
-        }
-    }
-    
-    return (uint8_t)iaq;
-}
 
 /**
  * @brief Update gas baseline calibration
@@ -236,19 +226,15 @@ bool bme680_gas_ready(void)
     return (ret == ESP_OK && !busy);
 }
 
-esp_err_t bme680_read(env_data_t* data)
+esp_err_t bme680_read(float* temperature_c, float* humidity_percent, uint16_t* co2_ppm)
 {
     if (!s_initialized) {
         return ESP_ERR_INVALID_STATE;
     }
     
-    if (data == NULL) {
+    if (temperature_c == NULL || humidity_percent == NULL || co2_ppm == NULL) {
         return ESP_ERR_INVALID_ARG;
     }
-    
-    // Initialize data structure
-    memset(data, 0, sizeof(env_data_t));
-    data->valid = false;
     
     // Read sensor values (floating point)
     bme680_values_float_t values;
@@ -258,52 +244,44 @@ esp_err_t bme680_read(env_data_t* data)
         return ret;
     }
     
-    // Copy values to our structure
-    data->temperature_c = values.temperature;
-    data->humidity_percent = values.humidity;
-    data->pressure_hpa = values.pressure;
-    data->gas_resistance_ohms = values.gas_resistance;
+    // Copy values
+    *temperature_c = values.temperature;
+    *humidity_percent = values.humidity;
     
     // Validate ranges
     bool valid = true;
-    if (data->temperature_c < BME680_TEMP_MIN_C || data->temperature_c > BME680_TEMP_MAX_C) {
-        ESP_LOGW(TAG, "Temperature out of range: %.2f°C", data->temperature_c);
+    if (*temperature_c < BME680_TEMP_MIN_C || *temperature_c > BME680_TEMP_MAX_C) {
+        ESP_LOGW(TAG, "Temperature out of range: %.2f°C", *temperature_c);
         valid = false;
     }
-    if (data->humidity_percent < BME680_HUM_MIN_PCT || data->humidity_percent > BME680_HUM_MAX_PCT) {
-        ESP_LOGW(TAG, "Humidity out of range: %.2f%%", data->humidity_percent);
-        valid = false;
-    }
-    if (data->pressure_hpa < BME680_PRES_MIN_HPA || data->pressure_hpa > BME680_PRES_MAX_HPA) {
-        ESP_LOGW(TAG, "Pressure out of range: %.2f hPa", data->pressure_hpa);
+    if (*humidity_percent < BME680_HUM_MIN_PCT || *humidity_percent > BME680_HUM_MAX_PCT) {
+        ESP_LOGW(TAG, "Humidity out of range: %.2f%%", *humidity_percent);
         valid = false;
     }
     
-    if (valid && data->gas_resistance_ohms > 0.0f) {
-        // Calculate CO2 and IAQ
-        data->co2_ppm = calculate_co2_from_gas(data->gas_resistance_ohms);
-        update_gas_baseline(data->gas_resistance_ohms);
-        data->iaq_index = calculate_iaq_from_gas(data->gas_resistance_ohms);
+    if (valid && values.gas_resistance > 0.0f) {
+        // Calculate CO2
+        *co2_ppm = calculate_co2_from_gas(values.gas_resistance);
+        update_gas_baseline(values.gas_resistance);
         
-        ESP_LOGI(TAG, "T=%.1f°C H=%.1f%% P=%.1fhPa Gas=%.0fΩ CO2=%dppm IAQ=%d %s",
-                 data->temperature_c, data->humidity_percent, data->pressure_hpa,
-                 data->gas_resistance_ohms, data->co2_ppm, data->iaq_index,
-                 s_baseline_calibrated ? "" : "(calibrating)");
+        ESP_LOGI(TAG, "T=%.1f°C H=%.1f%% Gas=%.0fΩ CO2=%dppm %s",
+                 *temperature_c, *humidity_percent, values.gas_resistance, 
+                 *co2_ppm, s_baseline_calibrated ? "" : "(calibrating)");
     } else {
         ESP_LOGE(TAG, "Invalid sensor data");
+        return ESP_FAIL;
     }
     
-    data->valid = valid;
-    return valid ? ESP_OK : ESP_FAIL;
+    return ESP_OK;
 }
 
-esp_err_t bme680_measure_and_read(env_data_t* data)
+esp_err_t bme680_measure_and_read(float* temperature_c, float* humidity_percent, uint16_t* co2_ppm)
 {
     if (!s_initialized) {
         return ESP_ERR_INVALID_STATE;
     }
     
-    if (data == NULL) {
+    if (temperature_c == NULL || humidity_percent == NULL || co2_ppm == NULL) {
         return ESP_ERR_INVALID_ARG;
     }
     
@@ -312,29 +290,23 @@ esp_err_t bme680_measure_and_read(env_data_t* data)
     esp_err_t ret = bme680_measure_float(&s_dev, &values);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Measurement failed: %s", esp_err_to_name(ret));
-        memset(data, 0, sizeof(env_data_t));
-        data->valid = false;
         return ret;
     }
     
     // Copy and process values
-    data->temperature_c = values.temperature;
-    data->humidity_percent = values.humidity;
-    data->pressure_hpa = values.pressure;
-    data->gas_resistance_ohms = values.gas_resistance;
+    *temperature_c = values.temperature;
+    *humidity_percent = values.humidity;
     
-    // Calculate CO2 and IAQ
-    if (data->gas_resistance_ohms > 0.0f) {
-        data->co2_ppm = calculate_co2_from_gas(data->gas_resistance_ohms);
-        update_gas_baseline(data->gas_resistance_ohms);
-        data->iaq_index = calculate_iaq_from_gas(data->gas_resistance_ohms);
+    // Calculate CO2
+    if (values.gas_resistance > 0.0f) {
+        *co2_ppm = calculate_co2_from_gas(values.gas_resistance);
+        update_gas_baseline(values.gas_resistance);
+    } else {
+        *co2_ppm = BME680_CO2_MIN_PPM;
     }
     
-    data->valid = true;
-    
-    ESP_LOGI(TAG, "T=%.1f°C H=%.1f%% P=%.1fhPa Gas=%.0fΩ CO2=%dppm IAQ=%d",
-             data->temperature_c, data->humidity_percent, data->pressure_hpa,
-             data->gas_resistance_ohms, data->co2_ppm, data->iaq_index);
+    ESP_LOGI(TAG, "T=%.1f°C H=%.1f%% Gas=%.0fΩ CO2=%dppm",
+             *temperature_c, *humidity_percent, values.gas_resistance, *co2_ppm);
     
     return ESP_OK;
 }

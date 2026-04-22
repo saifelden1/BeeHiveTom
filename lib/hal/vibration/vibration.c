@@ -2,13 +2,13 @@
  * @file vibration.c
  * @brief Piezo Vibration Sensor Driver Implementation
  * 
- * Simple analog piezo sensor reading with averaging.
- * Takes multiple ADC samples and returns the average value.
+ * Measures vibration amplitude from piezo sensor via ADC.
+ * Returns normalized amplitude (0.0-1.0) representing vibration intensity.
  * 
- * DEEP SLEEP COMPATIBLE:
- * - Designed for 15-minute wake/sleep cycles
- * - Quick initialization for fast wake cycles
- * - Minimal power consumption during active time
+ * SENSOR: Piezo film with mass attachment
+ * - Generates AC voltage when vibrating
+ * - Voltage reduced to ADC range via resistor divider
+ * - Higher vibration = higher voltage = higher ADC reading
  */
 
 #include "vibration.h"
@@ -75,20 +75,17 @@ esp_err_t vibration_init(void)
     return ESP_OK;
 }
 
-esp_err_t vibration_read(vibration_data_t* data)
+esp_err_t vibration_read(float* amplitude)
 {
     if (!s_initialized) {
         ESP_LOGE(TAG, "Vibration sensor not initialized");
         return ESP_ERR_INVALID_STATE;
     }
     
-    if (data == NULL) {
-        ESP_LOGE(TAG, "Invalid data pointer");
+    if (amplitude == NULL) {
+        ESP_LOGE(TAG, "Invalid amplitude pointer");
         return ESP_ERR_INVALID_ARG;
     }
-    
-    // Initialize data structure
-    memset(data, 0, sizeof(vibration_data_t));
     
     ESP_LOGI(TAG, "Reading vibration sensor (sampling for %d ms at %d ms intervals)...", 
              VIBRATION_SAMPLE_DURATION_MS, VIBRATION_SAMPLE_INTERVAL_MS);
@@ -121,10 +118,9 @@ esp_err_t vibration_read(vibration_data_t* data)
         vTaskDelay(pdMS_TO_TICKS(VIBRATION_SAMPLE_INTERVAL_MS));
     }
     
-    data->sample_count = sample_count;
-    
     if (sample_count < 2) {
         ESP_LOGE(TAG, "Insufficient samples collected: %lu", sample_count);
+        *amplitude = 0.0f;
         return ESP_FAIL;
     }
     
@@ -137,14 +133,11 @@ esp_err_t vibration_read(vibration_data_t* data)
     }
     float average_adc = (float)sum / (float)sample_count;
     
-    // Store average as the vibration reading
-    data->dominant_frequency_hz = average_adc;
+    // Normalize to 0.0-1.0 range
+    *amplitude = average_adc / (float)VIBRATION_ADC_MAX_VALUE;
     
-    // Update timestamp
-    data->last_vibration_time = esp_timer_get_time() / 1000000; // Convert to seconds
-    
-    ESP_LOGI(TAG, "Vibration reading: %.1f (average of %lu samples over %d ms)",
-             data->dominant_frequency_hz, sample_count, VIBRATION_SAMPLE_DURATION_MS);
+    ESP_LOGI(TAG, "Vibration amplitude: %.3f (avg ADC: %.1f from %lu samples)",
+             *amplitude, average_adc, sample_count);
     
     return ESP_OK;
 }

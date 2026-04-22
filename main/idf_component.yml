@@ -1,3 +1,0 @@
-dependencies:
-  esp-idf-lib/bme680: "^1.0.0"
-  idf: ">=5.0"

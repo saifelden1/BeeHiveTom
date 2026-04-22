@@ -60,6 +60,19 @@
 #define BME680_CALIBRATION_TIME_MS  300000  // 5 minutes calibration time
 
 /**
+ * @brief BME680 CO2 approximation parameters
+ * 
+ * CO2 estimation from gas resistance using linear model:
+ * CO2_ppm = BASELINE_CO2 + (REFERENCE_RESISTANCE - gas_resistance) / SENSITIVITY
+ * 
+ * Note: This is an approximation. BME680 measures VOCs, not CO2 directly.
+ * For accurate CO2 measurement, use dedicated NDIR CO2 sensor.
+ */
+#define BME680_CO2_BASELINE_PPM     450     // Baseline CO2 level (typical outdoor)
+#define BME680_CO2_REFERENCE_OHM    100000  // Reference gas resistance (clean air)
+#define BME680_CO2_SENSITIVITY      1000    // Sensitivity factor (Ohms per ppm)
+
+/**
  * @brief BME680 oversampling settings
  */
 #define BME680_TEMP_OVERSAMPLE  2       // Temperature oversampling (x2)
@@ -116,10 +129,13 @@
 /**
  * @brief Vibration sensor sampling configuration
  * 
- * Simple ADC sampling with averaging:
+ * Simple ADC sampling with averaging for piezo sensor:
  * - Sample duration: 500ms (configurable)
  * - Sample rate: 100 Hz (10ms interval between readings)
- * - Returns average of all ADC readings
+ * - Returns normalized amplitude (0.0-1.0)
+ * 
+ * Piezo sensor generates AC voltage proportional to vibration intensity.
+ * Higher vibration = higher voltage = higher ADC reading.
  */
 #define VIBRATION_SAMPLE_DURATION_MS    500     // Sampling duration in milliseconds
 #define VIBRATION_SAMPLE_RATE_HZ        100     // Sampling rate in Hz (100Hz = 10ms interval)
@@ -127,21 +143,9 @@
 #define VIBRATION_BUFFER_SIZE           (VIBRATION_SAMPLE_RATE_HZ * VIBRATION_SAMPLE_DURATION_MS / 1000) // 50 samples
 
 /**
- * @brief Vibration frequency detection range
- * 
- * Typical beehive vibration frequencies:
- * - Worker bee wing beat: 200-250 Hz
- * - Queen piping: 300-500 Hz
- * - Swarming activity: 100-300 Hz
+ * @brief Vibration amplitude normalization
  */
-#define VIBRATION_MIN_FREQ_HZ       10      // Minimum detectable frequency
-#define VIBRATION_MAX_FREQ_HZ       500     // Maximum detectable frequency
-
-/**
- * @brief Vibration ADC voltage reference
- */
-#define VIBRATION_ADC_MAX_VALUE     4095    // 12-bit ADC maximum value
-#define VIBRATION_VREF_MV           3300    // Reference voltage in millivolts
+#define VIBRATION_ADC_MAX_VALUE     4095    // 12-bit ADC maximum value (for normalization)
 
 // ============================================================================
 // SYSTEM TIMING CONFIGURATION
@@ -189,70 +193,40 @@
 // ============================================================================
 
 /**
- * @brief JSON format configuration
- * 
- * Configurable JSON structure for sensor data transmission.
- * Format options:
- * - 0: Compact format (minimal keys, no whitespace)
- * - 1: Standard format (readable with whitespace)
- * - 2: Verbose format (descriptive keys, units included)
- */
-#define JSON_FORMAT_TYPE            0               // 0=compact, 1=standard, 2=verbose
-
-/**
  * @brief JSON buffer sizing
  * 
  * Static buffer allocation to avoid heap fragmentation.
- * Single reading: ~200 bytes
+ * Single reading: ~120 bytes with minimal keys
  * Buffer sized for batch transmission of accumulated readings.
  */
-#define JSON_SINGLE_READING_SIZE    256             // Bytes per reading in JSON
-#define JSON_MAX_READINGS_PER_BATCH 100             // Max readings per transmission
-#define JSON_BUFFER_SIZE            (JSON_SINGLE_READING_SIZE * JSON_MAX_READINGS_PER_BATCH + 512) // ~26KB
+#define JSON_SINGLE_READING_SIZE    128             // Bytes per reading in JSON (reduced with minimal keys)
+#define JSON_MAX_READINGS_PER_BATCH 20              // Max readings per transmission (reduced for memory efficiency)
+#define JSON_BUFFER_SIZE            (JSON_SINGLE_READING_SIZE * JSON_MAX_READINGS_PER_BATCH + 256) // ~2.8KB
 
 /**
- * @brief JSON field names (configurable for different formats)
+ * @brief JSON field names (ultra-minimal for bandwidth efficiency)
+ * 
+ * Minimal keys save bandwidth and reduce transmission time.
+ * Configure these to match your server's expected format.
+ * 
+ * Current mapping:
+ * - "id"   → Device identifier
+ * - "r"    → Readings array
+ * - "ts"   → Timestamp (Unix time)
+ * - "temp" → Temperature (°C)
+ * - "hum"  → Humidity (%)
+ * - "co2"  → CO2 (ppm)
+ * - "vib"  → Vibration amplitude (0.0-1.0)
+ * - "batt" → Battery level (%)
  */
-#if JSON_FORMAT_TYPE == 0  // Compact format
-    #define JSON_KEY_DEVICE_ID      "id"
-    #define JSON_KEY_READINGS       "r"
-    #define JSON_KEY_TIMESTAMP      "ts"
-    #define JSON_KEY_TEMP           "t"
-    #define JSON_KEY_HUM            "h"
-    #define JSON_KEY_PRES           "p"
-    #define JSON_KEY_GAS            "g"
-    #define JSON_KEY_CO2            "c"
-    #define JSON_KEY_IAQ            "i"
-    #define JSON_KEY_VIB_FREQ       "vf"
-    #define JSON_KEY_VIB_AMP        "va"
-    #define JSON_KEY_BATTERY        "b"
-#elif JSON_FORMAT_TYPE == 1  // Standard format
-    #define JSON_KEY_DEVICE_ID      "device_id"
-    #define JSON_KEY_READINGS       "readings"
-    #define JSON_KEY_TIMESTAMP      "timestamp"
-    #define JSON_KEY_TEMP           "temperature_c"
-    #define JSON_KEY_HUM            "humidity_percent"
-    #define JSON_KEY_PRES           "pressure_hpa"
-    #define JSON_KEY_GAS            "gas_resistance_ohms"
-    #define JSON_KEY_CO2            "co2_ppm"
-    #define JSON_KEY_IAQ            "iaq_index"
-    #define JSON_KEY_VIB_FREQ       "vibration_frequency_hz"
-    #define JSON_KEY_VIB_AMP        "vibration_amplitude"
-    #define JSON_KEY_BATTERY        "battery_level"
-#else  // Verbose format (type 2)
-    #define JSON_KEY_DEVICE_ID      "device_identifier"
-    #define JSON_KEY_READINGS       "sensor_readings"
-    #define JSON_KEY_TIMESTAMP      "unix_timestamp"
-    #define JSON_KEY_TEMP           "temperature_celsius"
-    #define JSON_KEY_HUM            "relative_humidity_percent"
-    #define JSON_KEY_PRES           "atmospheric_pressure_hpa"
-    #define JSON_KEY_GAS            "gas_resistance_ohms"
-    #define JSON_KEY_CO2            "carbon_dioxide_ppm"
-    #define JSON_KEY_IAQ            "indoor_air_quality_index"
-    #define JSON_KEY_VIB_FREQ       "vibration_dominant_frequency_hz"
-    #define JSON_KEY_VIB_AMP        "vibration_amplitude_normalized"
-    #define JSON_KEY_BATTERY        "battery_level_percent"
-#endif
+#define JSON_KEY_DEVICE_ID      "id"
+#define JSON_KEY_READINGS       "r"
+#define JSON_KEY_TIMESTAMP      "ts"
+#define JSON_KEY_TEMP           "temp"
+#define JSON_KEY_HUM            "hum"
+#define JSON_KEY_CO2            "co2"
+#define JSON_KEY_VIB            "vib"
+#define JSON_KEY_BATTERY        "batt"
 
 // ============================================================================
 // WIFI CONFIGURATION

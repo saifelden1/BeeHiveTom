@@ -21,7 +21,6 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include "esp_err.h"
-#include "datatypes.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -49,21 +48,19 @@ esp_err_t bme680_init(void);
 /**
  * @brief Read all sensor data from BME680
  * 
- * Reads temperature, humidity, pressure, and gas resistance.
- * Calculates CO2 approximation and IAQ index from gas resistance.
- * Marks data as invalid if sensor communication fails.
+ * Reads temperature, humidity, and gas resistance.
+ * Calculates CO2 approximation from gas resistance.
  * 
- * @param[out] data Pointer to env_data_t structure to store readings
+ * @param[out] temperature_c Temperature in Celsius
+ * @param[out] humidity_percent Relative humidity percentage
+ * @param[out] co2_ppm CO2 approximation in ppm
  * 
  * @return ESP_OK on success
- * @return ESP_ERR_INVALID_ARG if data pointer is NULL
+ * @return ESP_ERR_INVALID_ARG if any pointer is NULL
  * @return ESP_ERR_INVALID_STATE if sensor not initialized
  * @return ESP_FAIL if sensor read fails
- * 
- * @note Gas sensor requires warm-up time. Call bme680_trigger_gas_measurement()
- *       before reading if gas data is needed.
  */
-esp_err_t bme680_read(env_data_t* data);
+esp_err_t bme680_read(float* temperature_c, float* humidity_percent, uint16_t* co2_ppm);
 
 /**
  * @brief Trigger gas sensor measurement
@@ -110,10 +107,12 @@ esp_err_t bme680_deinit(void);
  * 3. Reads all sensor data
  * 4. Returns results
  * 
- * @param[out] data Pointer to structure to receive readings
+ * @param[out] temperature_c Temperature in Celsius
+ * @param[out] humidity_percent Relative humidity percentage
+ * @param[out] co2_ppm CO2 approximation in ppm
  * 
  * @return ESP_OK on success
- * @return ESP_ERR_INVALID_ARG if data pointer is NULL
+ * @return ESP_ERR_INVALID_ARG if any pointer is NULL
  * @return ESP_ERR_INVALID_STATE if sensor not initialized
  * @return ESP_ERR_TIMEOUT if measurement times out
  * @return ESP_FAIL if sensor read fails
@@ -121,7 +120,7 @@ esp_err_t bme680_deinit(void);
  * @note This function blocks for approximately 200-250ms
  * @note Suitable for power-optimized wake-measure-sleep cycles
  */
-esp_err_t bme680_measure_and_read(env_data_t* data);
+esp_err_t bme680_measure_and_read(float* temperature_c, float* humidity_percent, uint16_t* co2_ppm);
 
 #ifdef __cplusplus
 }

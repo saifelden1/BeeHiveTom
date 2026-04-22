@@ -29,11 +29,21 @@ static const char* TAG = LOG_TAG_RTC;
 static bool s_initialized = false;
 static i2c_dev_t s_ds3231_dev;
 
+// I2C initialization tracking (shared across I2C devices)
+// Declared extern to share with BME680
+extern bool s_i2c_initialized;
+
 /**
- * @brief Initialize I2C for DS3231
+ * @brief Initialize I2C for DS3231 (checks if already initialized)
  */
 static esp_err_t ds3231_i2c_init(void)
 {
+    // Check if I2C already initialized by another driver
+    if (s_i2c_initialized) {
+        ESP_LOGI(TAG, "I2C already initialized, skipping");
+        return ESP_OK;
+    }
+    
     i2c_config_t conf = {
         .mode = I2C_MODE_MASTER,
         .sda_io_num = GPIO_NUM_21,  // Default SDA pin
@@ -53,12 +63,14 @@ static esp_err_t ds3231_i2c_init(void)
     if (ret != ESP_OK) {
         if (ret == ESP_ERR_INVALID_STATE) {
             ESP_LOGW(TAG, "I2C driver already installed");
+            s_i2c_initialized = true;
             return ESP_OK;
         }
         ESP_LOGE(TAG, "I2C driver install failed: %s", esp_err_to_name(ret));
         return ret;
     }
     
+    s_i2c_initialized = true;
     ESP_LOGI(TAG, "I2C initialized on port %d (SDA: GPIO%d, SCL: GPIO%d)",
              DS3231_I2C_PORT, GPIO_NUM_21, GPIO_NUM_22);
     

@@ -280,23 +280,15 @@ static void format_reading_json(char* buffer, size_t* offset, size_t size,
         "\"%s\":%llu,"
         "\"%s\":%.2f,"
         "\"%s\":%.2f,"
-        "\"%s\":%.2f,"
-        "\"%s\":%.0f,"
         "\"%s\":%u,"
-        "\"%s\":%u,"
-        "\"%s\":%.2f,"
         "\"%s\":%.3f,"
         "\"%s\":%u"
         "}%s",
         JSON_KEY_TIMESTAMP, (unsigned long long)reading->timestamp,
-        JSON_KEY_TEMP, reading->env.temperature_c,
-        JSON_KEY_HUM, reading->env.humidity_percent,
-        JSON_KEY_PRES, reading->env.pressure_hpa,
-        JSON_KEY_GAS, reading->env.gas_resistance_ohms,
-        JSON_KEY_CO2, reading->env.co2_ppm,
-        JSON_KEY_IAQ, reading->env.iaq_index,
-        JSON_KEY_VIB_FREQ, reading->vibration.dominant_frequency_hz,
-        JSON_KEY_VIB_AMP, reading->vibration.amplitude,
+        JSON_KEY_TEMP, reading->temperature_c,
+        JSON_KEY_HUM, reading->humidity_percent,
+        JSON_KEY_CO2, reading->co2_ppm,
+        JSON_KEY_VIB, reading->vibration_amplitude,
         JSON_KEY_BATTERY, reading->battery_level,
         is_last ? "" : ","
     );

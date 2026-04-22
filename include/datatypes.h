@@ -38,35 +38,6 @@ typedef enum {
 // ============================================================================
 
 /**
- * @brief Environmental sensor data (generic for any sensor)
- * 
- * Can be populated by BME680 (all fields), MG-811 (co2_ppm only), or other sensors.
- * This generic structure allows easy sensor swapping without code changes.
- */
-typedef struct {
-    float temperature_c;          // Temperature in Celsius (-40 to 85°C)
-    float humidity_percent;       // Relative humidity (0-100%)
-    float pressure_hpa;           // Atmospheric pressure in hPa (300-1100 hPa)
-    float gas_resistance_ohms;    // Gas sensor resistance in Ohms (> 0) [BME680 only]
-    uint16_t co2_ppm;            // CO2 in ppm (400-5000) [BME680 approx or MG-811 direct]
-    uint8_t iaq_index;           // Indoor Air Quality index (0-500) [BME680 only]
-    bool valid;                  // Data validity flag
-} env_data_t;
-
-/**
- * @brief Vibration sensor data from piezo sensor
- * 
- * Measured via ADC sampling at 1kHz with zero-crossing frequency detection.
- */
-typedef struct {
-    float dominant_frequency_hz;  // Measured vibration frequency (10-500 Hz)
-    float amplitude;              // Vibration intensity (0.0-1.0 normalized)
-    uint32_t sample_count;        // Number of ADC samples analyzed
-    bool vibration_detected;      // True if vibration detected above threshold
-    uint64_t last_vibration_time; // Timestamp of last detection (Unix time)
-} vibration_data_t;
-
-/**
  * @brief RTC time structure
  * 
  * Used for DS3231 Real-Time Clock time representation.
@@ -83,68 +54,22 @@ typedef struct {
 /**
  * @brief Complete sensor reading with timestamp
  * 
- * Aggregates all sensor data for a single wake cycle.
+ * Contains all sensor data for storage and transmission:
+ * - timestamp: Unix time from RTC
+ * - temperature_c: Temperature in Celsius from BME680
+ * - humidity_percent: Relative humidity from BME680
+ * - co2_ppm: CO2 concentration from BME680 gas sensor
+ * - vibration_amplitude: Piezo sensor vibration intensity (normalized 0.0-1.0)
+ * - battery_level: Battery percentage (0-100)
  */
 typedef struct {
     uint64_t timestamp;           // Unix timestamp from RTC
-    env_data_t env;              // Environmental sensor data (BME680 or others)
-    vibration_data_t vibration;  // Vibration sensor data
-    uint8_t battery_level;       // Battery level percentage (0-100, future)
+    float temperature_c;          // Temperature in Celsius (-40 to 85°C)
+    float humidity_percent;       // Relative humidity (0-100%)
+    uint16_t co2_ppm;            // CO2 in ppm (400-5000)
+    float vibration_amplitude;    // Vibration intensity (0.0-1.0 normalized)
+    uint8_t battery_level;       // Battery level percentage (0-100)
     bool valid;                  // Overall reading validity
 } sensor_reading_t;
-
-// ============================================================================
-// CONFIGURATION TYPES
-// ============================================================================
-
-/**
- * @brief WiFi configuration
- */
-typedef struct {
-    char ssid[32];              // WiFi SSID
-    char password[64];          // WiFi password
-    char server_url[128];       // Server URL (localhost for testing)
-    uint16_t timeout_ms;        // Connection timeout in milliseconds
-} wifi_config_t;
-
-/**
- * @brief Sleep configuration
- */
-typedef struct {
-    uint32_t sleep_duration_minutes;  // Sleep duration (default: 15 minutes)
-    bool use_rtc_wakeup;             // Use RTC timer for wake-up
-    bool use_ext_wakeup;             // Use external GPIO for wake-up
-    uint8_t ext_wakeup_pin;          // GPIO pin for external wake-up
-} sleep_config_t;
-
-/**
- * @brief System configuration
- * 
- * Complete system configuration including WiFi, sleep, and operational parameters.
- */
-typedef struct {
-    wifi_config_t wifi;                    // WiFi configuration
-    sleep_config_t sleep;                  // Sleep configuration
-    uint16_t reading_interval_minutes;     // Sensor reading interval (15)
-    uint16_t transmission_interval_count;  // Readings before transmission (4)
-    uint16_t max_stored_readings;          // Maximum readings in buffer (1000)
-    char device_id[32];                    // Unique device identifier
-} system_config_t;
-
-// ============================================================================
-// SENSOR DRIVER INTERFACE
-// ============================================================================
-
-/**
- * @brief Generic sensor driver interface
- * 
- * Provides uniform interface for all sensor drivers.
- */
-typedef struct {
-    esp_err_t (*init)(void);      // Initialize sensor
-    esp_err_t (*read)(void* data); // Read sensor data
-    esp_err_t (*deinit)(void);    // Deinitialize sensor
-    const char* name;             // Sensor name for logging
-} sensor_driver_t;
 
 #endif // DATATYPES_H

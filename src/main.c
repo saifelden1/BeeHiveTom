@@ -1,186 +1,190 @@
 /**
  * @file main.c
- * @brief Main application entry point for Sensor Data Collection System
+ * @brief Main application - Sequential sensor reading and transmission
  * 
- * Implements sequential state machine for sensor reading, data storage,
- * and transmission with deep sleep power management.
- * 
- * Architecture: Sequential execution (no FreeRTOS tasks)
- * Flow: INIT → READ_SENSORS → STORE_DATA → TRANSMIT_CHECK → 
- *       TRANSMIT_DATA (conditional) → PREPARE_SLEEP → SLEEP
+ * Simple flow: init → read → store → transmit (if ready) → sleep → repeat
  */
 
 #include <stdio.h>
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
 #include "esp_log.h"
-#include "esp_system.h"
 #include "nvs_flash.h"
 
-// Include system-wide data types and configuration
-#include "datatypes.h"
 #include "config.h"
+#include "datatypes.h"
+#include "bme680.h"
+#include "ds3231.h"
+#include "vibration.h"
+#include "battery.h"
+#include "data_manager.h"
+#include "comm_manager.h"
+#include "power_manager.h"
 
-// Log tag for main application
 static const char* TAG = LOG_TAG_MAIN;
 
-/**
- * @brief Initialize all system components
- * 
- * Initializes NVS, sensors, WiFi, and power management.
- * 
- * @return ESP_OK on success, error code otherwise
- */
-static esp_err_t system_init(void)
+void app_main(void)
 {
     esp_err_t ret;
+    sensor_reading_t reading = {0};
     
     ESP_LOGI(TAG, "=== Sensor Data Collection System ===");
-    ESP_LOGI(TAG, "Device ID: %s", DEVICE_ID);
-    ESP_LOGI(TAG, "Firmware Version: %s", FIRMWARE_VERSION);
-    ESP_LOGI(TAG, "Board: %s", BOARD_NAME);
+    ESP_LOGI(TAG, "Device: %s, Firmware: %s", DEVICE_ID, FIRMWARE_VERSION);
     
-    // Initialize NVS (Non-Volatile Storage)
+    // ========================================================================
+    // 1. INITIALIZE NVS
+    // ========================================================================
     ESP_LOGI(TAG, "Initializing NVS...");
     ret = nvs_flash_init();
     if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
-        // NVS partition was truncated and needs to be erased
-        ESP_LOGW(TAG, "NVS partition needs to be erased");
+        ESP_LOGW(TAG, "Erasing NVS partition");
         ESP_ERROR_CHECK(nvs_flash_erase());
         ret = nvs_flash_init();
     }
     ESP_ERROR_CHECK(ret);
-    ESP_LOGI(TAG, "NVS initialized successfully");
     
-    // TODO: Initialize sensor drivers (Task 4, 5, 6)
-    // - BME680 sensor driver
-    // - Vibration sensor driver
-    // - RTC driver
+    // ========================================================================
+    // 2. INITIALIZE SENSORS
+    // ========================================================================
+    ESP_LOGI(TAG, "Initializing sensors...");
     
-    // TODO: Initialize service layer (Task 8, 9, 10)
-    // - Data manager
-    // - Communication manager
-    // - Power manager
-    
-    ESP_LOGI(TAG, "System initialization complete");
-    return ESP_OK;
-}
-
-/**
- * @brief Check if transmission cycle has been reached
- * 
- * @return true if should transmit, false otherwise
- */
-static bool should_transmit(void)
-{
-    // TODO: Implement transmission cycle check (Task 12)
-    // Check if TRANSMISSION_INTERVAL readings have been collected
-    return false;
-}
-
-/**
- * @brief Main application entry point
- * 
- * Implements sequential state machine for system operation.
- * No FreeRTOS tasks - single execution thread only.
- */
-void app_main(void)
-{
-    system_state_t state = STATE_INIT;
-    
-    ESP_LOGI(TAG, "Starting Sensor Data Collection System...");
-    
-    // Sequential state machine loop
-    while (1) {
-        switch (state) {
-            case STATE_INIT:
-                ESP_LOGI(TAG, "STATE: INIT");
-                
-                // Initialize all system components
-                if (system_init() == ESP_OK) {
-                    // NVS automatically loads existing data on init
-                    state = STATE_READ_SENSORS;
-                } else {
-                    ESP_LOGE(TAG, "System initialization failed");
-                    // Retry after delay
-                    vTaskDelay(pdMS_TO_TICKS(5000));
-                }
-                break;
-                
-            case STATE_READ_SENSORS:
-                ESP_LOGI(TAG, "STATE: READ_SENSORS");
-                
-                // TODO: Implement sensor reading (Task 12)
-                // - Get timestamp from RTC
-                // - Read BME680 sensor
-                // - Read vibration sensor
-                // - Populate sensor_reading_t structure
-                
-                state = STATE_STORE_DATA;
-                break;
-                
-            case STATE_STORE_DATA:
-                ESP_LOGI(TAG, "STATE: STORE_DATA");
-                
-                // TODO: Implement data storage (Task 12)
-                // - Store reading directly in NVS via data_manager
-                
-                state = STATE_TRANSMIT_CHECK;
-                break;
-                
-            case STATE_TRANSMIT_CHECK:
-                ESP_LOGI(TAG, "STATE: TRANSMIT_CHECK");
-                
-                // Check if transmission cycle reached
-                if (should_transmit()) {
-                    state = STATE_TRANSMIT_DATA;
-                } else {
-                    state = STATE_PREPARE_SLEEP;
-                }
-                break;
-                
-            case STATE_TRANSMIT_DATA:
-                ESP_LOGI(TAG, "STATE: TRANSMIT_DATA");
-                
-                // TODO: Implement data transmission (Task 12)
-                // - Format accumulated readings as JSON
-                // - Connect to WiFi
-                // - Send data via HTTP POST
-                // - Clear NVS on success
-                // - Disconnect WiFi
-                
-                state = STATE_PREPARE_SLEEP;
-                break;
-                
-            case STATE_PREPARE_SLEEP:
-                ESP_LOGI(TAG, "STATE: PREPARE_SLEEP");
-                
-                // TODO: Implement sleep preparation (Task 12)
-                // - Disable peripherals to save power
-                
-                state = STATE_SLEEP;
-                break;
-                
-            case STATE_SLEEP:
-                ESP_LOGI(TAG, "STATE: SLEEP");
-                ESP_LOGI(TAG, "Entering deep sleep for %d minutes...", READING_INTERVAL_MIN);
-                
-                // TODO: Implement deep sleep (Task 12)
-                // - Configure wake-up timer
-                // - Enter deep sleep mode
-                // After wake, execution restarts from app_main()
-                
-                // For now, just delay to simulate sleep
-                vTaskDelay(pdMS_TO_TICKS(5000));
-                
-                // After wake, restart from INIT
-                state = STATE_INIT;
-                break;
-                
-            default:
-                ESP_LOGE(TAG, "Unknown state: %d", state);
-                state = STATE_INIT;
-                break;
-        }
+    if (bme680_init() != ESP_OK) {
+        ESP_LOGE(TAG, "BME680 init failed");
     }
+    
+    if (rtc_init() != ESP_OK) {
+        ESP_LOGE(TAG, "RTC init failed");
+    }
+    
+    if (vibration_init() != ESP_OK) {
+        ESP_LOGE(TAG, "Vibration init failed");
+    }
+    
+    if (battery_init() != ESP_OK) {
+        ESP_LOGE(TAG, "Battery init failed");
+    }
+    
+    // ========================================================================
+    // 3. INITIALIZE SERVICES
+    // ========================================================================
+    ESP_LOGI(TAG, "Initializing services...");
+    
+    if (data_manager_init() != ESP_OK) {
+        ESP_LOGE(TAG, "Data manager init failed");
+    }
+    
+    if (comm_manager_init() != ESP_OK) {
+        ESP_LOGE(TAG, "Comm manager init failed");
+    }
+    
+    if (power_manager_init() != ESP_OK) {
+        ESP_LOGE(TAG, "Power manager init failed");
+    }
+    
+    // ========================================================================
+    // 4. READ SENSORS
+    // ========================================================================
+    ESP_LOGI(TAG, "Reading sensors...");
+    
+    // Get timestamp from RTC
+    if (rtc_get_timestamp(&reading.timestamp) == ESP_OK) {
+        ESP_LOGI(TAG, "Timestamp: %llu", (unsigned long long)reading.timestamp);
+    } else {
+        ESP_LOGW(TAG, "Failed to read RTC, using 0");
+        reading.timestamp = 0;
+    }
+    
+    // Read BME680 (temperature, humidity, CO2)
+    if (bme680_read(&reading.temperature_c, &reading.humidity_percent, &reading.co2_ppm) == ESP_OK) {
+        ESP_LOGI(TAG, "BME680: %.1f°C, %.1f%%, %uppm", 
+                 reading.temperature_c, reading.humidity_percent, reading.co2_ppm);
+    } else {
+        ESP_LOGW(TAG, "BME680 read failed");
+        reading.temperature_c = 0.0f;
+        reading.humidity_percent = 0.0f;
+        reading.co2_ppm = 0;
+    }
+    
+    // Read vibration
+    if (vibration_read(&reading.vibration_amplitude) == ESP_OK) {
+        ESP_LOGI(TAG, "Vibration: %.3f", reading.vibration_amplitude);
+    } else {
+        ESP_LOGW(TAG, "Vibration read failed");
+        reading.vibration_amplitude = 0.0f;
+    }
+    
+    // Read battery level
+    if (battery_read_level(&reading.battery_level) == ESP_OK) {
+        ESP_LOGI(TAG, "Battery: %u%%", reading.battery_level);
+    } else {
+        ESP_LOGW(TAG, "Battery read failed");
+        reading.battery_level = 0;
+    }
+    
+    reading.valid = true;
+    
+    // ========================================================================
+    // 5. STORE READING
+    // ========================================================================
+    ESP_LOGI(TAG, "Storing reading...");
+    
+    if (data_manager_store_reading(&reading) != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to store reading");
+    }
+    
+    uint32_t stored_count = data_manager_get_count();
+    ESP_LOGI(TAG, "Stored readings: %lu", (unsigned long)stored_count);
+    
+    // ========================================================================
+    // 6. TRANSMIT (ALWAYS TRY, REGARDLESS OF COUNT)
+    // ========================================================================
+    ESP_LOGI(TAG, "Attempting transmission (%lu readings stored)...", (unsigned long)stored_count);
+    
+    // Try to connect to WiFi
+    if (comm_manager_connect() == ESP_OK) {
+        ESP_LOGI(TAG, "WiFi connected");
+        
+        // Allocate JSON buffer
+        char* json_buffer = malloc(JSON_BUFFER_SIZE);
+        if (json_buffer != NULL) {
+            // Format JSON with all stored readings
+            if (data_manager_format_json(json_buffer, JSON_BUFFER_SIZE) == ESP_OK) {
+                ESP_LOGI(TAG, "JSON formatted (%zu bytes)", strlen(json_buffer));
+                
+                // Send data
+                if (comm_manager_send_json(json_buffer, strlen(json_buffer)) == ESP_OK) {
+                    ESP_LOGI(TAG, "Data sent successfully");
+                    
+                    // Clear NVS on success
+                    if (data_manager_clear() == ESP_OK) {
+                        ESP_LOGI(TAG, "NVS cleared");
+                    }
+                } else {
+                    ESP_LOGW(TAG, "Failed to send data, keeping in NVS for next cycle");
+                }
+            } else {
+                ESP_LOGE(TAG, "Failed to format JSON");
+            }
+            
+            free(json_buffer);
+        } else {
+            ESP_LOGE(TAG, "Failed to allocate JSON buffer");
+        }
+        
+        // Disconnect WiFi
+        comm_manager_disconnect();
+        
+    } else {
+        ESP_LOGW(TAG, "WiFi connection failed, skipping transmission");
+        ESP_LOGI(TAG, "Reading stored in NVS, will retry next cycle");
+    }
+    
+    // ========================================================================
+    // 7. SLEEP
+    // ========================================================================
+    ESP_LOGI(TAG, "Entering deep sleep for %u minutes...", READING_INTERVAL_MIN);
+    
+    // This deinitializes sensors and enters deep sleep (does not return)
+    power_manager_sleep();
+    
+    // Should never reach here
+    ESP_LOGE(TAG, "Failed to enter deep sleep!");
 }
