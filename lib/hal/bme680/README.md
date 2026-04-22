@@ -22,7 +22,7 @@ bme680_trigger_gas_measurement();
 vTaskDelay(pdMS_TO_TICKS(200));
 
 // 4. Read sensor data
-bme680_data_t data;
+env_data_t data;
 if (bme680_read(&data) == ESP_OK && data.valid) {
     printf("Temp: %.1f°C, Humidity: %.1f%%, Pressure: %.1f hPa\n",
            data.temperature_c, data.humidity_percent, data.pressure_hpa);
@@ -62,7 +62,7 @@ typedef struct {
     uint16_t co2_ppm;            // 400-5000 ppm (approximation)
     uint8_t iaq_index;           // 0-500 (0=excellent, 500=extremely polluted)
     bool valid;                  // Data validity flag
-} bme680_data_t;
+} env_data_t;
 ```
 
 ## IAQ Index Scale

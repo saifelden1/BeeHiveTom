@@ -53,7 +53,7 @@ esp_err_t bme680_init(void);
  * Calculates CO2 approximation and IAQ index from gas resistance.
  * Marks data as invalid if sensor communication fails.
  * 
- * @param[out] data Pointer to bme680_data_t structure to store readings
+ * @param[out] data Pointer to env_data_t structure to store readings
  * 
  * @return ESP_OK on success
  * @return ESP_ERR_INVALID_ARG if data pointer is NULL
@@ -63,7 +63,7 @@ esp_err_t bme680_init(void);
  * @note Gas sensor requires warm-up time. Call bme680_trigger_gas_measurement()
  *       before reading if gas data is needed.
  */
-esp_err_t bme680_read(bme680_data_t* data);
+esp_err_t bme680_read(env_data_t* data);
 
 /**
  * @brief Trigger gas sensor measurement
@@ -121,7 +121,7 @@ esp_err_t bme680_deinit(void);
  * @note This function blocks for approximately 200-250ms
  * @note Suitable for power-optimized wake-measure-sleep cycles
  */
-esp_err_t bme680_measure_and_read(bme680_data_t* data);
+esp_err_t bme680_measure_and_read(env_data_t* data);
 
 #ifdef __cplusplus
 }

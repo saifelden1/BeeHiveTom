@@ -38,20 +38,20 @@ typedef enum {
 // ============================================================================
 
 /**
- * @brief BME680 environmental sensor data
+ * @brief Environmental sensor data (generic for any sensor)
  * 
- * Contains temperature, humidity, pressure, gas resistance, CO2 approximation,
- * and Indoor Air Quality (IAQ) index.
+ * Can be populated by BME680 (all fields), MG-811 (co2_ppm only), or other sensors.
+ * This generic structure allows easy sensor swapping without code changes.
  */
 typedef struct {
     float temperature_c;          // Temperature in Celsius (-40 to 85°C)
     float humidity_percent;       // Relative humidity (0-100%)
     float pressure_hpa;           // Atmospheric pressure in hPa (300-1100 hPa)
-    float gas_resistance_ohms;    // Gas sensor resistance in Ohms (> 0)
-    uint16_t co2_ppm;            // CO2 approximation in ppm (400-5000 ppm)
-    uint8_t iaq_index;           // Indoor Air Quality index (0-500)
+    float gas_resistance_ohms;    // Gas sensor resistance in Ohms (> 0) [BME680 only]
+    uint16_t co2_ppm;            // CO2 in ppm (400-5000) [BME680 approx or MG-811 direct]
+    uint8_t iaq_index;           // Indoor Air Quality index (0-500) [BME680 only]
     bool valid;                  // Data validity flag
-} bme680_data_t;
+} env_data_t;
 
 /**
  * @brief Vibration sensor data from piezo sensor
@@ -87,7 +87,7 @@ typedef struct {
  */
 typedef struct {
     uint64_t timestamp;           // Unix timestamp from RTC
-    bme680_data_t bme680;        // BME680 environmental data
+    env_data_t env;              // Environmental sensor data (BME680 or others)
     vibration_data_t vibration;  // Vibration sensor data
     uint8_t battery_level;       // Battery level percentage (0-100, future)
     bool valid;                  // Overall reading validity

@@ -81,6 +81,38 @@
 #define VIBRATION_ADC_ATTEN         ADC_ATTEN_DB_11 // 0-3.3V range
 #define VIBRATION_ADC_WIDTH         ADC_WIDTH_BIT_12 // 12-bit resolution (0-4095)
 
+// ============================================================================
+// BATTERY LEVEL CONFIGURATION
+// ============================================================================
+
+/**
+ * @brief Battery level ADC configuration
+ * 
+ * Battery voltage monitoring via ADC with voltage divider.
+ * ADC configuration: 12-bit resolution, 11dB attenuation (0-3.3V range)
+ */
+#define BATTERY_GPIO_PIN            GPIO_NUM_35     // GPIO35 (ADC1_CHANNEL_7)
+#define BATTERY_ADC_CHANNEL         ADC1_CHANNEL_7  // ADC1 Channel 7
+#define BATTERY_ADC_ATTEN           ADC_ATTEN_DB_11 // 0-3.3V range
+#define BATTERY_ADC_WIDTH           ADC_WIDTH_BIT_12 // 12-bit resolution (0-4095)
+
+/**
+ * @brief Battery voltage specifications
+ * 
+ * Voltage divider: 2:1 ratio (R1=100kΩ, R2=100kΩ)
+ * Max battery voltage: 4.2V → 2.1V at ADC
+ * Min battery voltage: 3.0V → 1.5V at ADC
+ */
+#define BATTERY_MAX_VOLTAGE_MV      4200    // Maximum battery voltage (mV)
+#define BATTERY_MIN_VOLTAGE_MV      3000    // Minimum battery voltage (mV)
+#define BATTERY_VOLTAGE_DIVIDER     2       // Voltage divider ratio (2:1)
+
+/**
+ * @brief Battery ADC reference
+ */
+#define BATTERY_ADC_MAX_VALUE       4095    // 12-bit ADC maximum value
+#define BATTERY_VREF_MV             3300    // Reference voltage in millivolts
+
 /**
  * @brief Vibration sensor sampling configuration
  * 
@@ -138,14 +170,89 @@
  * @brief NVS (Non-Volatile Storage) configuration
  */
 #define NVS_NAMESPACE               "sensor_data"   // NVS namespace
-#define MAX_STORED_READINGS         1000            // Maximum readings in buffer
 #define NVS_PARTITION_SIZE          16384           // 16KB NVS partition
 
 /**
  * @brief NVS key names
  */
-#define NVS_KEY_METADATA            "metadata"      // Metadata key
-#define NVS_KEY_READING_PREFIX      "reading_"      // Reading key prefix
+#define NVS_KEY_METADATA            "metadata"      // Metadata key (stores count)
+#define NVS_KEY_READING_PREFIX      "reading_"      // Reading key prefix (e.g., "reading_0")
+
+/**
+ * @brief NVS retry configuration
+ */
+#define NVS_WRITE_MAX_RETRIES       3               // Max retries for NVS write
+#define NVS_WRITE_RETRY_DELAY_MS    50              // Delay between retries
+
+// ============================================================================
+// JSON FORMATTING CONFIGURATION
+// ============================================================================
+
+/**
+ * @brief JSON format configuration
+ * 
+ * Configurable JSON structure for sensor data transmission.
+ * Format options:
+ * - 0: Compact format (minimal keys, no whitespace)
+ * - 1: Standard format (readable with whitespace)
+ * - 2: Verbose format (descriptive keys, units included)
+ */
+#define JSON_FORMAT_TYPE            0               // 0=compact, 1=standard, 2=verbose
+
+/**
+ * @brief JSON buffer sizing
+ * 
+ * Static buffer allocation to avoid heap fragmentation.
+ * Single reading: ~200 bytes
+ * Buffer sized for batch transmission of accumulated readings.
+ */
+#define JSON_SINGLE_READING_SIZE    256             // Bytes per reading in JSON
+#define JSON_MAX_READINGS_PER_BATCH 100             // Max readings per transmission
+#define JSON_BUFFER_SIZE            (JSON_SINGLE_READING_SIZE * JSON_MAX_READINGS_PER_BATCH + 512) // ~26KB
+
+/**
+ * @brief JSON field names (configurable for different formats)
+ */
+#if JSON_FORMAT_TYPE == 0  // Compact format
+    #define JSON_KEY_DEVICE_ID      "id"
+    #define JSON_KEY_READINGS       "r"
+    #define JSON_KEY_TIMESTAMP      "ts"
+    #define JSON_KEY_TEMP           "t"
+    #define JSON_KEY_HUM            "h"
+    #define JSON_KEY_PRES           "p"
+    #define JSON_KEY_GAS            "g"
+    #define JSON_KEY_CO2            "c"
+    #define JSON_KEY_IAQ            "i"
+    #define JSON_KEY_VIB_FREQ       "vf"
+    #define JSON_KEY_VIB_AMP        "va"
+    #define JSON_KEY_BATTERY        "b"
+#elif JSON_FORMAT_TYPE == 1  // Standard format
+    #define JSON_KEY_DEVICE_ID      "device_id"
+    #define JSON_KEY_READINGS       "readings"
+    #define JSON_KEY_TIMESTAMP      "timestamp"
+    #define JSON_KEY_TEMP           "temperature_c"
+    #define JSON_KEY_HUM            "humidity_percent"
+    #define JSON_KEY_PRES           "pressure_hpa"
+    #define JSON_KEY_GAS            "gas_resistance_ohms"
+    #define JSON_KEY_CO2            "co2_ppm"
+    #define JSON_KEY_IAQ            "iaq_index"
+    #define JSON_KEY_VIB_FREQ       "vibration_frequency_hz"
+    #define JSON_KEY_VIB_AMP        "vibration_amplitude"
+    #define JSON_KEY_BATTERY        "battery_level"
+#else  // Verbose format (type 2)
+    #define JSON_KEY_DEVICE_ID      "device_identifier"
+    #define JSON_KEY_READINGS       "sensor_readings"
+    #define JSON_KEY_TIMESTAMP      "unix_timestamp"
+    #define JSON_KEY_TEMP           "temperature_celsius"
+    #define JSON_KEY_HUM            "relative_humidity_percent"
+    #define JSON_KEY_PRES           "atmospheric_pressure_hpa"
+    #define JSON_KEY_GAS            "gas_resistance_ohms"
+    #define JSON_KEY_CO2            "carbon_dioxide_ppm"
+    #define JSON_KEY_IAQ            "indoor_air_quality_index"
+    #define JSON_KEY_VIB_FREQ       "vibration_dominant_frequency_hz"
+    #define JSON_KEY_VIB_AMP        "vibration_amplitude_normalized"
+    #define JSON_KEY_BATTERY        "battery_level_percent"
+#endif
 
 // ============================================================================
 // WIFI CONFIGURATION
